@@ -11,8 +11,8 @@ if alice:
     alice = alice[0]
 else:
     alice = client.table("users").insert({
-        "email": "alice@test.com",
-        "name": "Alice",
+        "email": "alice1@test.com",
+        "name": "Alice1",
         "max_cash_amt": 50.00,
         "max_cash_pct": 20.00,
     }).execute().data[0]
@@ -23,8 +23,8 @@ if bob:
     bob = bob[0]
 else:
     bob = client.table("users").insert({
-        "email": "bob@test.com",
-        "name": "Bob",
+        "email": "bob2@test.com",
+        "name": "Bob2",
         "max_cash_amt": 100.00,
         "max_cash_pct": 30.00,
     }).execute().data[0]
@@ -61,18 +61,18 @@ client.table("user_categories").insert([
 print("User categories created")
 
 # 4. Create a deal
-deal = client.table("deals").insert({
-    "user1_id": alice["id"],
-    "user2_id": bob["id"],
-    "user1_item_id": switch["id"],
-    "user2_item_id": macbook["id"],
-    "cash_difference": 300.00,
-    "payer_id": alice["id"],
-    "status": "pending",
-}).execute().data[0]
-print(f"Deal:  {deal['id']}")
+# deal = client.table("deals").insert({
+#     "user1_id": alice["id"],
+#     "user2_id": bob["id"],
+#     "user1_item_id": switch["id"],
+#     "user2_item_id": macbook["id"],
+#     "cash_difference": 300.00,
+#     "payer_id": alice["id"],
+#     "status": "pending",
+# }).execute().data[0]
+# print(f"Deal:  {deal['id']}")
 
 print("\n--- Test the Chat API ---")
-print(f'POST /chatrooms  body: {{"deal_id": "{deal["id"]}"}}')
+# print(f'POST /chatrooms  body: {{"deal_id": "{deal["id"]}"}}')
 print(f'Alice sender_id: {alice["id"]}')
 print(f'Bob   sender_id: {bob["id"]}')
