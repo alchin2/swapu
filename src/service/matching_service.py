@@ -1,6 +1,9 @@
 import logging
 
 from core.exceptions import NotFoundError, ValidationError
+from service.chat_service import ChatService
+from service.deal_service import DealService
+from service.negotiation_service import NegotiationService
 from service.base import SupabaseService
 
 logger = logging.getLogger(__name__)
@@ -11,6 +14,94 @@ CONDITION_RANK = {"like_new": 4, "good": 3, "fair": 2, "poor": 1}
 
 
 class MatchingService(SupabaseService):
+
+    def create_best_agent_deal(
+        self,
+        user_id: str,
+        category: str | None = None,
+        condition: str | None = None,
+    ) -> dict:
+        """Agent-driven flow: auto-discover user's collection, find the best
+        mutual match, create a deal, and run negotiation.
+
+        The agent pulls ALL of the user's items (their collection) and their
+        wanted categories (user_categories), then finds other users who have
+        stuff the user wants AND want what the user can offer — all within the
+        user's max_cash_amt / max_cash_pct limits.
+        """
+        user_id = self.require_identifier(user_id, "user_id")
+        logger.info("Agent auto-deal for user=%s", user_id[:8])
+
+        # 1. Get ALL items owned by this user (their collection)
+        all_items = (
+            self.client.table("items")
+            .select("id")
+            .eq("owner_id", user_id)
+            .execute()
+        ).data
+        if not all_items:
+            raise ValidationError("User has no items in their collection to trade.")
+
+        # 2. Exclude items already locked in active deals
+        active_deals = (
+            self.client.table("deals")
+            .select("user1_item_id, user2_item_id")
+            .in_("status", list(ACTIVE_STATUSES))
+            .execute()
+        ).data
+        busy_ids = set()
+        for d in active_deals:
+            busy_ids.add(d["user1_item_id"])
+            busy_ids.add(d["user2_item_id"])
+
+        available_ids = [i["id"] for i in all_items if i["id"] not in busy_ids]
+        if not available_ids:
+            raise ValidationError("All of the user's items are already in active deals.")
+
+        logger.info("User has %d available items out of %d total", len(available_ids), len(all_items))
+
+        # 3. Find the best match using the full collection
+        matches = self.find_matches(
+            user_id=user_id,
+            item_ids=available_ids,
+            category=category,
+            condition=condition,
+            limit=1,
+        )
+        if not matches:
+            raise NotFoundError("No eligible trade match was found for agent negotiation.")
+
+        best_match = matches[0]
+        deal_service = DealService()
+        chat_service = ChatService()
+        negotiation_service = NegotiationService()
+
+        deal = deal_service.create_deal({
+            "user1_id": user_id,
+            "user2_id": best_match["other_user_id"],
+            "user1_item_id": best_match["my_offer_item_id"],
+            "user2_item_id": best_match["other_item_id"],
+            "cash_difference": best_match["price_diff"],
+            "payer_id": best_match["who_pays"],
+            "status": "pending",
+        })
+        chatroom = chat_service.create_chatroom(deal["id"])
+
+        return {
+            "selected_match": best_match,
+            "deal": deal,
+            "chatroom": chatroom,
+            "next_actions": self._build_next_actions(deal["status"]),
+        }
+
+    @staticmethod
+    def run_negotiation_background(deal_id: str) -> None:
+        """Run AI negotiation in a background task (called after response is sent)."""
+        try:
+            NegotiationService().start_negotiation(deal_id)
+            logger.info("Background negotiation completed for deal %s", deal_id)
+        except Exception:
+            logger.exception("Background negotiation failed for deal %s", deal_id)
 
     def find_matches(
         self,
@@ -201,3 +292,13 @@ class MatchingService(SupabaseService):
 
         logger.info("Returning %d matches", len(results))
         return results
+
+    @staticmethod
+    def _build_next_actions(deal_status: str) -> list[str]:
+        if deal_status == "negotiating":
+            return ["accept", "decline", "counter"]
+        if deal_status == "accepted":
+            return ["view_deal"]
+        if deal_status == "declined":
+            return ["search_again"]
+        return ["start_negotiation"]

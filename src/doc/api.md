@@ -587,6 +587,98 @@ Example response:
 ]
 ```
 
+### `POST /match/{user_id}/auto-deal`
+
+Agent-driven trade: automatically discover the user's full item collection, find the best mutual match (other user has what I want AND wants what I have), create the deal, create a chatroom, and run AI negotiation — all in one call. The user only provides their ID.
+
+Request body:
+
+```json
+{
+  "category": "electronics",
+  "condition": "good"
+}
+```
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `category` | string or null | no | Filter to a specific wanted category |
+| `condition` | string or null | no | Minimum item condition filter |
+
+The agent automatically:
+1. Fetches all items owned by the user (their collection from `items` table).
+2. Excludes items already in active deals.
+3. Reads the user's wanted categories from `user_categories`.
+4. Finds other users whose items match what the user wants AND who want what the user has.
+5. Ranks by smallest price difference within `max_cash_amt` / `max_cash_pct`.
+6. Creates a deal with the best match, opens a chatroom, and runs AI negotiation.
+7. Returns the result so the user can **accept**, **decline**, or **counter**.
+
+Request fields: same as `POST /match/{user_id}`.
+
+Example response:
+
+```json
+{
+  "selected_match": {
+    "other_user_id": "22222222-2222-2222-2222-222222222222",
+    "other_user_name": "Sam",
+    "other_item_id": "44444444-4444-4444-4444-444444444444",
+    "other_item_name": "Nintendo Switch",
+    "other_item_category": "electronics",
+    "other_item_condition": "good",
+    "other_item_price": 180,
+    "my_offer_item_id": "33333333-3333-3333-3333-333333333333",
+    "my_offer_item_name": "TI-84 Plus",
+    "my_offer_item_price": 160,
+    "price_diff": 20,
+    "who_pays": "11111111-1111-1111-1111-111111111111"
+  },
+  "deal": {
+    "id": "d4b95a18-9d58-45d2-a6bd-816fc1a1c6ce",
+    "user1_id": "11111111-1111-1111-1111-111111111111",
+    "user2_id": "22222222-2222-2222-2222-222222222222",
+    "user1_item_id": "33333333-3333-3333-3333-333333333333",
+    "user2_item_id": "44444444-4444-4444-4444-444444444444",
+    "cash_difference": 20,
+    "payer_id": "11111111-1111-1111-1111-111111111111",
+    "status": "negotiating",
+    "created_at": "2026-04-05T12:00:00.000000+00:00"
+  },
+  "chatroom": {
+    "id": "8b4bc4a2-4d17-4af7-bab4-b8e99785db6d",
+    "deal_id": "d4b95a18-9d58-45d2-a6bd-816fc1a1c6ce"
+  },
+  "negotiation": {
+    "logs": [
+      {
+        "agent": "agent_11111111",
+        "content": "Offer: $20.00 paid by 11111111... | Opening offer based on value difference",
+        "step": 1
+      }
+    ],
+    "result": {
+      "deal_id": "d4b95a18-9d58-45d2-a6bd-816fc1a1c6ce",
+      "status": "accepted",
+      "final_cash_difference": 20,
+      "final_payer_id": "11111111-1111-1111-1111-111111111111",
+      "total_steps": 3
+    }
+  },
+  "next_actions": [
+    "accept",
+    "decline",
+    "counter"
+  ]
+}
+```
+
+Notes:
+
+- The best match is the first ranked result from the standard matching flow.
+- The created deal stays in `negotiating` when the agents reach terms and is then waiting for a user decision.
+- If the agents reject the deal, the returned deal status will be `declined` and `next_actions` will suggest another search.
+
 ## Negotiation
 
 Base path: `/negotiate`

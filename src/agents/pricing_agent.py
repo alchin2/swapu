@@ -3,6 +3,9 @@ import os
 import asyncio
 from typing import Literal
 from pydantic import BaseModel
+from dotenv import load_dotenv
+
+load_dotenv()
 
 try:
     from browser_use_sdk.v3 import AsyncBrowserUse
@@ -27,8 +30,15 @@ class PricingResult(BaseModel):
 
 class PricingAgent:
     def __init__(self):
-        # Browser Use client (may be None in local dev)
-        self.client = AsyncBrowserUse() if AsyncBrowserUse else None
+        # Browser Use client — pass API key from BROWSER_USE env var
+        self.client = None
+        if AsyncBrowserUse is not None:
+            api_key = os.getenv("BROWSER_USE")
+            if api_key:
+                try:
+                    self.client = AsyncBrowserUse(api_key=api_key, timeout=120.0)
+                except Exception as e:
+                    logger.error("Failed to init Browser Use client: %s", e)
         self.item_service = ItemService()
         self.allowed_categories = [
             'textbooks', 'iclicker', 'lab_supplies', 'dining_dollars',
@@ -88,10 +98,23 @@ class PricingAgent:
                 result = None
                 try:
                     result = await self.client.run(task=task_prompt, model="bu-max")
-                    clean_output = result.output[result.output.find('{'):result.output.rfind('}') + 1]
-                    pricing_data = json.loads(clean_output)
+                    output = result.final_result() if hasattr(result, 'final_result') else getattr(result, 'output', '')
+                    
+                    if isinstance(output, str):
+                        start_idx = output.find('{')
+                        end_idx = output.rfind('}')
+                        if start_idx != -1 and end_idx != -1:
+                            clean_output = output[start_idx:end_idx + 1]
+                            pricing_data = json.loads(clean_output)
+                        else:
+                            raise ValueError(f"No JSON brackets found in output: {output}")
+                    elif isinstance(output, dict):
+                        pricing_data = output
+                    else:
+                         raise ValueError(f"Unexpected type for output: {type(output)}")
+                        
                     logger.info(f"Successfully parsed JSON output: {pricing_data}")
-                except (Exception, json.JSONDecodeError) as e:
+                except Exception as e:
                     logger.error(f"Pricing agent failed: {e}. Using fallback.")
                     fallback_price = input_price if input_price is not None else 10.0
                     pricing_data = {

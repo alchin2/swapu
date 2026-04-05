@@ -7,3 +7,4 @@ class NegotiationMove(BaseModel):
     cash_difference: float
     payer_id: str  # user_id of who pays
     reasoning: str  # agent's explanation
+    message: str = ""  # conversational message to the other agent

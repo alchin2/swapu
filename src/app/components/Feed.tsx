@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { Search } from "lucide-react";
 import Masonry from "react-responsive-masonry";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
+import { authFetch } from "../auth";
 
 const FALLBACK_IMAGE = "https://via.placeholder.com/400?text=No+Image";
 
@@ -14,16 +15,26 @@ type FeedItem = {
   image_urls?: string[];
 };
 
-const categories = [
-  "All",
-  "Textbooks",
-  "Electronics",
-  "Dorm Essentials",
-  "Tickets",
-  "Games",
-  "Transport",
-  "Clothing",
-];
+const CATEGORY_MAP: Record<string, string> = {
+  All: "All",
+  textbooks: "Textbooks",
+  iclicker: "iClicker",
+  lab_supplies: "Lab Supplies",
+  dining_dollars: "Dining Dollars",
+  electronics: "Electronics",
+  dorm_essentials: "Dorm Essentials",
+  clothing: "Clothing",
+  trading_cards: "Trading Cards",
+  games: "Games",
+  instruments: "Instruments",
+  art_supplies: "Art Supplies",
+  sports_equipment: "Sports Equipment",
+  transport: "Transport",
+  tickets: "Tickets",
+  other: "Other",
+};
+
+const categories = Object.keys(CATEGORY_MAP);
 
 export function Feed() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -34,7 +45,7 @@ export function Feed() {
 
   useEffect(() => {
     setLoading(true);
-    fetch("/items/")
+    authFetch("/items/")
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch items");
         return res.json();
@@ -76,18 +87,18 @@ export function Feed() {
         </div>
         {/* Category Pills */}
         <div className="flex gap-2 overflow-x-auto pb-2">
-          {categories.map((category) => (
+          {categories.map((catKey) => (
             <button
-              key={category}
-              onClick={() => setSelectedCategory(category)}
+              key={catKey}
+              onClick={() => setSelectedCategory(catKey)}
               className={`px-4 py-2 rounded-full whitespace-nowrap transition-colors ${
-                selectedCategory === category
+                selectedCategory === catKey
                   ? "bg-[#534AB7] text-white"
                   : "bg-white text-[#1A1A1A] border border-[#E5E5E5] hover:border-[#534AB7]"
               }`}
               style={{ borderRadius: "20px" }}
             >
-              {category}
+              {CATEGORY_MAP[catKey]}
             </button>
           ))}
         </div>

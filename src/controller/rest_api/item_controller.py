@@ -1,8 +1,9 @@
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, status
+from fastapi import APIRouter, BackgroundTasks, Depends, status
 
+from core.auth import get_current_user
 from service.items_service import ItemService, Item, ItemCreate, ItemUpdate
 from agents.pricing_agent import pricing_agent
 
@@ -22,7 +23,7 @@ def create_item_routes() -> APIRouter:
         return item_service.get_item(str(item_id))
 
     @router.post("/", response_model=Item, status_code=status.HTTP_201_CREATED)
-    async def create_item(request: ItemCreate, background_tasks: BackgroundTasks):
+    async def create_item(request: ItemCreate, background_tasks: BackgroundTasks, _: dict = Depends(get_current_user)):
         """Create a new item"""
         item = item_service.create_item(
             owner_id=str(request.owner_id),
@@ -43,15 +44,40 @@ def create_item_routes() -> APIRouter:
         return item
 
     @router.patch("/{item_id}", response_model=Item)
-    def update_item(item_id: UUID, request: ItemUpdate):
+    def update_item(item_id: UUID, request: ItemUpdate, _: dict = Depends(get_current_user)):
         """Update an existing item"""
         update_data = request.model_dump(exclude_unset=True)
         return item_service.update_item(str(item_id), update_data)
 
+    @router.post("/{item_id}/reprice")
+    async def reprice_item(item_id: UUID, background_tasks: BackgroundTasks, _: dict = Depends(get_current_user)):
+        """Re-run the pricing agent for an item."""
+        item = item_service.get_item(str(item_id))
+        # Reset confidence_score to null to signal pricing in progress
+        item_service.update_item(str(item_id), {"confidence_score": None})
+        background_tasks.add_task(
+            pricing_agent.get_aggregated_price_and_category,
+            str(item_id),
+            item["name"],
+            item.get("condition", "good"),
+            float(item.get("price", 1)),
+        )
+        return {"status": "repricing", "item_id": str(item_id)}
+
     @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
-    def delete_item(item_id: UUID):
+    def delete_item(item_id: UUID, _: dict = Depends(get_current_user)):
         """Delete an item by its ID"""
         item_service.delete_item(str(item_id))
         return None
+
+    @router.delete("/{item_id}/safe", status_code=status.HTTP_200_OK)
+    def safe_delete_item(item_id: UUID, _: dict = Depends(get_current_user)):
+        """Safely delete an item, auto-declining active deals."""
+        return item_service.safe_delete_item(str(item_id))
+
+    @router.get("/deal-statuses/{owner_id}")
+    def get_item_deal_statuses(owner_id: UUID, _: dict = Depends(get_current_user)):
+        """Get deal statuses for all items owned by a user."""
+        return item_service.get_item_deal_statuses(str(owner_id))
 
     return router
