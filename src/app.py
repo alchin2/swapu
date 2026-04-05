@@ -10,6 +10,10 @@ from controller.rest_api.match_controller import create_match_routes
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+from controller.rest_api.deal_contoller import create_deal_routes
+
+
 def create_application() -> FastAPI:
     app = FastAPI(
         title="TradeSwap API",
