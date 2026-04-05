@@ -26,6 +26,14 @@ export function GuestLogin() {
   function login() {
     if (!selected) return;
     localStorage.setItem("guest_user_id", selected);
+
+    const selectedUser = users.find((u) => u.id === selected);
+    if (selectedUser) {
+      console.log(
+        `Switched guest user to: ${selectedUser.name} (${selectedUser.id})`
+      );
+    }
+
     // Notify other components to refresh user-dependent data without a full reload
     window.dispatchEvent(new Event("guest_user_changed"));
   }

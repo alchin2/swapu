@@ -12,14 +12,22 @@ interface Deal {
 }
 
 export function MyDeals() {
-  // Use selected guest user UUID from localStorage
-  const stored = typeof window !== "undefined" ? localStorage.getItem("guest_user_id") : null;
-  const userId = stored ?? "19497467-e10b-4124-a65b-68c3f6b26be7";
+  const [userId, setUserId] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("guest_user_id");
+    }
+    return null;
+  });
   const [activeDeals, setActiveDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (!userId) {
+      setLoading(false);
+      setActiveDeals([]);
+      return;
+    }
     setLoading(true);
     fetch(`/deals/user/${userId}`)
       .then((res) => {
@@ -32,25 +40,13 @@ export function MyDeals() {
   }, [userId]);
 
   useEffect(() => {
-    function onGuestChange() {
-      const newStored = localStorage.getItem("guest_user_id");
-      const newUserId = newStored ?? "19497467-e10b-4124-a65b-68c3f6b26be7";
-      if (newUserId !== userId) {
-        setLoading(true);
-        fetch(`/deals/user/${newUserId}`)
-          .then((res) => {
-            if (!res.ok) throw new Error("Failed to fetch deals");
-            return res.json();
-          })
-          .then((data) => setActiveDeals(data))
-          .catch((err) => setError(err.message))
-          .finally(() => setLoading(false));
-      }
-    }
+    const onGuestChange = () => {
+      setUserId(localStorage.getItem("guest_user_id"));
+    };
 
     window.addEventListener("guest_user_changed", onGuestChange);
     return () => window.removeEventListener("guest_user_changed", onGuestChange);
-  }, [userId]);
+  }, []);
 
   const statusColors = {
     pending: "bg-[#6B6B6B] text-white",
@@ -62,6 +58,7 @@ export function MyDeals() {
 
   if (loading) return <div>Loading...</div>;
   if (error) return <div className="text-red-500">{error}</div>;
+  if (!userId) return <div className="text-center py-16 text-[#6B6B6B]">Please select a guest account to view your deals.</div>;
 
   return (
     <div className="max-w-[1100px] mx-auto px-8 py-8">

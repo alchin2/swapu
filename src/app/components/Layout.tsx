@@ -1,6 +1,5 @@
 import { Link, Outlet, useLocation } from "react-router";
 import { Home, Package, Handshake, User } from "lucide-react";
-import { GuestLogin } from "./GuestLogin";
 
 export function Layout() {
   const location = useLocation();
@@ -45,9 +44,6 @@ export function Layout() {
             );
           })}
         </nav>
-
-        {/* Guest Login */}
-        <GuestLogin />
 
         {/* Footer */}
         <div className="p-4 border-t border-[#E5E5E5]">
