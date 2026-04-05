@@ -6,52 +6,52 @@ from database.supabase_client import get_supabase_client
 client = get_supabase_client()
 
 # 1. Get or create users
-alice = client.table("users").select("*").eq("email", "alice@test.com").execute().data
-if alice:
-    alice = alice[0]
-else:
-    alice = client.table("users").insert({
-        "email": "alice1@test.com",
-        "name": "Alice1",
-        "max_cash_amt": 50.00,
-        "max_cash_pct": 20.00,
-    }).execute().data[0]
-print(f"Alice: {alice['id']}")
+# alice = client.table("users").select("*").eq("email", "alice3@test.com").execute().data
+# if alice:
+#     alice = alice[0]
+# else:
+#     alice = client.table("users").insert({
+#         "email": "alice3@test.com",
+#         "name": "Alice3",
+#         "max_cash_amt": 50.00,
+#         "max_cash_pct": 20.00,
+#     }).execute().data[0]
+# print(f"Alice: {alice['id']}")
 
-bob = client.table("users").select("*").eq("email", "bob@test.com").execute().data
-if bob:
-    bob = bob[0]
-else:
-    bob = client.table("users").insert({
-        "email": "bob2@test.com",
-        "name": "Bob2",
-        "max_cash_amt": 100.00,
-        "max_cash_pct": 30.00,
-    }).execute().data[0]
-print(f"Bob:   {bob['id']}")
+# bob = client.table("users").select("*").eq("email", "bob3@test.com").execute().data
+# if bob:
+#     bob = bob[0]
+# else:
+#     bob = client.table("users").insert({
+#         "email": "bob3@test.com",
+#         "name": "Bob3",
+#         "max_cash_amt": 100.00,
+#         "max_cash_pct": 30.00,
+#     }).execute().data[0]
+# print(f"Bob:   {bob['id']}")
 
-# 2. Create items
-switch = client.table("items").insert({
-    "owner_id": alice["id"],
-    "name": "Nintendo Switch",
-    "category": "Electronics",
-    "condition": "good",
-    "price": 200.00,
-    "confidence_score": 0.95,
-    "image_url": "https://placehold.co/400x300?text=Nintendo+Switch",
-}).execute().data[0]
-print(f"Nintendo Switch: {switch['id']}")
+# # 2. Create items
+# switch = client.table("items").insert({
+#     "owner_id": alice["id"],
+#     "name": "Nintendo Switch",
+#     "category": "Electronics",
+#     "condition": "good",
+#     "price": 200.00,
+#     "confidence_score": 0.95,
+#     "image_url": "https://placehold.co/400x300?text=Nintendo+Switch",
+# }).execute().data[0]
+# print(f"Nintendo Switch: {switch['id']}")
 
-macbook = client.table("items").insert({
-    "owner_id": bob["id"],
-    "name": "MacBook Air M1",
-    "category": "Electronics",
-    "condition": "fair",
-    "price": 500.00,
-    "confidence_score": 0.90,
-    "image_url": "https://placehold.co/400x300?text=MacBook+Air+M1",
-}).execute().data[0]
-print(f"MacBook Air M1:  {macbook['id']}")
+# macbook = client.table("items").insert({
+#     "owner_id": bob["id"],
+#     "name": "MacBook Air M1",
+#     "category": "Electronics",
+#     "condition": "fair",
+#     "price": 500.00,
+#     "confidence_score": 0.90,
+#     "image_url": "https://placehold.co/400x300?text=MacBook+Air+M1",
+# }).execute().data[0]
+# print(f"MacBook Air M1:  {macbook['id']}")
 
 # 3. User categories
 client.table("user_categories").insert([
