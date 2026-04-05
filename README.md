@@ -1,6 +1,9 @@
 # SwapU
 
 ## Overview
+<img width="1299" height="705" alt="logo" src="https://github.com/user-attachments/assets/51856599-1bb2-4c8d-a60c-9603e82bd632" />
+<img width="2409" height="1508" alt="homescreen" src="https://github.com/user-attachments/assets/5648f36e-0342-4fb7-b931-b2b45e192207" />
+<img width="2408" height="1515" alt="ainegotiation" src="https://github.com/user-attachments/assets/c239667f-38ce-4d52-b8b8-7bbd6fa1b05f" />
 
 The spark for SwapU came from the "campus graveyard" of unused student gear. We realized that university life is full of inefficiencies; students are constantly sitting on assets like iClickers, lab equipment, or textbooks that they no longer need, while others are continually searching through forums and marketplace discords to find those exact items.
 
