@@ -86,13 +86,19 @@ class ChatService(SupabaseService):
 
         result = (
             self.client.table("messages")
-            .select("id, chatroom_id, sender_id, content, created_at")
+            .select("id, chatroom_id, sender_id, content, created_at, users!sender_id(name)")
             .eq("chatroom_id", chatroom["id"])
             .order("created_at", desc=False)
             .limit(limit)
             .execute()
         )
-        return result.data
+        # Flatten the joined user name into sender_name
+        messages = []
+        for msg in result.data:
+            user_data = msg.pop("users", None) or {}
+            msg["sender_name"] = user_data.get("name", "Unknown")
+            messages.append(msg)
+        return messages
 
     def send_message(self, chatroom_id: str, sender_id: str, content: str) -> dict:
         """Send a message in a chatroom (REST fallback before WS is ready)."""

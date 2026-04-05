@@ -10,6 +10,28 @@ from service.base import SupabaseService
 
 logger = logging.getLogger(__name__)
 
+_upload_service = None
+
+
+def _get_upload_service():
+    global _upload_service
+    if _upload_service is None:
+        from service.upload_service import UploadService
+        _upload_service = UploadService()
+    return _upload_service
+
+
+def _to_presigned_url(s3_url: str) -> str:
+    """Convert a raw S3 URL to a presigned read URL."""
+    try:
+        svc = _get_upload_service()
+        key = svc.extract_object_key(s3_url)
+        if key:
+            return svc.create_presigned_read_url(key)
+    except Exception:
+        pass
+    return s3_url
+
 
 def _split_image_urls(raw_value: Optional[str]) -> list[str]:
     if not raw_value:
@@ -81,7 +103,8 @@ class ItemService(SupabaseService):
     @staticmethod
     def _format_item(item_row: dict) -> dict:
         formatted = dict(item_row)
-        formatted["image_urls"] = _split_image_urls(formatted.get("image_url"))
+        raw_urls = _split_image_urls(formatted.get("image_url"))
+        formatted["image_urls"] = [_to_presigned_url(url) for url in raw_urls]
         return formatted
 
     def get_items(self):

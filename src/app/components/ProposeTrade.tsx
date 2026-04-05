@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router";
 import { ArrowLeft, ArrowRightLeft } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
+import { authFetch } from "../auth";
 
 const FALLBACK_IMAGE = "https://via.placeholder.com/800x600?text=No+Image";
 
@@ -48,11 +49,11 @@ export function ProposeTrade() {
 
     function setCurrentData() {
       Promise.all([
-        fetch(`/items/${id}`).then((res) => {
+        authFetch(`/items/${id}`).then((res) => {
           if (!res.ok) throw new Error("Failed to fetch item");
           return res.json();
         }),
-        fetch("/items/").then((res) => {
+        authFetch("/items/").then((res) => {
           if (!res.ok) throw new Error("Failed to fetch my items");
           return res.json();
         })
@@ -78,7 +79,7 @@ export function ProposeTrade() {
 
   const handleSubmit = () => {
     if (theirItem && selectedMyItem && userId) {
-      fetch("/deals/", {
+      authFetch("/deals/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -95,7 +96,7 @@ export function ProposeTrade() {
           if (!res.ok) throw new Error("Failed to propose trade");
           return res.json();
         })
-        .then(() => navigate("/my-deals"))
+        .then((data) => navigate(`/deal/${data.id}`))
         .catch((err) => setError(err.message));
     }
   };

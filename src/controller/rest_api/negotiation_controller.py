@@ -1,6 +1,7 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
+from core.auth import get_current_user
 from service.negotiation_service import NegotiationService
 
 
@@ -23,22 +24,22 @@ def create_negotiation_routes() -> APIRouter:
         return service.start_negotiation(request.deal_id)
 
     @router.get("/{deal_id}/logs")
-    def get_negotiation_logs(deal_id: str):
+    def get_negotiation_logs(deal_id: str, _: dict = Depends(get_current_user)):
         """Get negotiation logs for a deal."""
         return service.get_negotiation_logs(deal_id)
 
     @router.post("/{deal_id}/confirm")
-    def confirm_negotiation(deal_id: str):
+    def confirm_negotiation(deal_id: str, _: dict = Depends(get_current_user)):
         """User confirms the negotiated deal."""
         return service.confirm_negotiation(deal_id)
 
     @router.post("/{deal_id}/decline")
-    def decline_negotiation(deal_id: str):
+    def decline_negotiation(deal_id: str, _: dict = Depends(get_current_user)):
         """User declines the negotiated deal."""
         return service.decline_negotiation(deal_id)
 
     @router.post("/{deal_id}/counter")
-    def counter_negotiation(deal_id: str, request: CounterRequest):
+    def counter_negotiation(deal_id: str, request: CounterRequest, _: dict = Depends(get_current_user)):
         """User counters with new terms and re-runs negotiation."""
         return service.counter_negotiation(deal_id, request.cash_difference, request.payer_id)
 

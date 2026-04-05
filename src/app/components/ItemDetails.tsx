@@ -1,7 +1,8 @@
 import { useParams, Link } from "react-router";
-import { ArrowLeft } from "lucide-react";
-import { useState, useEffect } from "react";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
+import { authFetch } from "../auth";
 
 const FALLBACK_IMAGE = "https://via.placeholder.com/800x600?text=No+Image";
 
@@ -12,17 +13,24 @@ export function ItemDetails() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    setLoading(true);
-    fetch(`/items/${id}`)
+  const fetchItem = useCallback(() => {
+    return authFetch(`/items/${id}`)
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch item");
         return res.json();
       })
       .then((data) => {
         setItem(data);
+        return data;
+      });
+  }, [id]);
+
+  useEffect(() => {
+    setLoading(true);
+    fetchItem()
+      .then((data) => {
         if (data.owner_id) {
-          fetch(`/users/${data.owner_id}`)
+          authFetch(`/users/${data.owner_id}`)
             .then((res) => {
               if (!res.ok) throw new Error("Failed to fetch owner");
               return res.json();
@@ -38,7 +46,17 @@ export function ItemDetails() {
         setError(err.message);
         setLoading(false);
       });
-  }, [id]);
+  }, [id, fetchItem]);
+
+  // Poll while item is still being priced
+  useEffect(() => {
+    if (!item) return;
+    if (item.confidence_score !== null) return;
+    const interval = setInterval(() => {
+      fetchItem().catch(() => {});
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [item, fetchItem]);
 
   const conditionColors = {
     good: "bg-[#1D9E75] text-white",
@@ -93,8 +111,20 @@ export function ItemDetails() {
 
           {/* Show category and price if available */}
           <div className="bg-white rounded-xl p-6">
-            <div className="mb-2"><b>Category:</b> {item.category}</div>
-            <div><b>Price:</b> ${item.price}</div>
+            {item.confidence_score === null ? (
+              <div className="flex items-center gap-2 text-[#534AB7]">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>Agent is finding the best price and category...</span>
+              </div>
+            ) : (
+              <>
+                <div className="mb-2"><b>Category:</b> {item.category}</div>
+                <div className="mb-2"><b>Price:</b> ${Number(item.price).toFixed(2)}</div>
+                {item.confidence_score === 0 && (
+                  <p className="text-sm text-[#EF9F27]">Pricing agent couldn't determine an accurate price. You can re-price from My Items.</p>
+                )}
+              </>
+            )}
           </div>
 
           {/* Owner Info */}

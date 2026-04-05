@@ -37,8 +37,8 @@ class ConflictError(AppError):
 
 
 class AuthorizationError(AppError):
-    status_code = 403
-    code = "forbidden"
+    status_code = 401
+    code = "unauthorized"
 
 
 class ConfigurationError(AppError):

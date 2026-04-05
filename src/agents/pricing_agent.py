@@ -3,6 +3,9 @@ import os
 import asyncio
 from typing import Literal
 from pydantic import BaseModel
+from dotenv import load_dotenv
+
+load_dotenv()
 
 try:
     from browser_use_sdk.v3 import AsyncBrowserUse
@@ -27,8 +30,15 @@ class PricingResult(BaseModel):
 
 class PricingAgent:
     def __init__(self):
-        # Browser Use client (may be None in local dev)
-        self.client = AsyncBrowserUse() if AsyncBrowserUse else None
+        # Browser Use client — pass API key from BROWSER_USE env var
+        self.client = None
+        if AsyncBrowserUse is not None:
+            api_key = os.getenv("BROWSER_USE")
+            if api_key:
+                try:
+                    self.client = AsyncBrowserUse(api_key=api_key, timeout=120.0)
+                except Exception as e:
+                    logger.error("Failed to init Browser Use client: %s", e)
         self.item_service = ItemService()
         self.allowed_categories = [
             'textbooks', 'iclicker', 'lab_supplies', 'dining_dollars',

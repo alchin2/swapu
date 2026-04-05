@@ -2,9 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 import { Upload, X } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
-
-// Use real user UUID for owner_id
-const DUMMY_OWNER_ID = "19497467-e10b-4124-a65b-68c3f6b26be7";
+import { authFetch } from "../auth";
 
 type UploadResponse = {
   upload_url: string;
@@ -38,7 +36,7 @@ export function ListItem() {
   };
 
   const uploadImage = async (file: File): Promise<string> => {
-    const presignResponse = await fetch("/uploads/presign", {
+    const presignResponse = await authFetch("/uploads/presign", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -73,19 +71,24 @@ export function ListItem() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const ownerId = localStorage.getItem("guest_user_id");
+    if (!ownerId) {
+      setError("Please select an account on the Profile page first.");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
       const imageUrls = selectedImage ? [await uploadImage(selectedImage)] : [];
-      const res = await fetch("/items/", {
+      const res = await authFetch("/items/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          owner_id: DUMMY_OWNER_ID,
+          owner_id: ownerId,
           name: itemName,
-          category: "miscellaneous",
+          category: "other",
           condition: condition.toLowerCase(),
-          price: 1, // Dummy price, required by API
+          price: 1, // Placeholder — pricing agent updates in background
           confidence_score: null,
           image_urls: imageUrls,
         }),

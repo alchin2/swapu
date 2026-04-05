@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from controller.rest_api.auth_controller import create_auth_routes
 from controller.rest_api.chat_controller import create_chat_routes
 from controller.rest_api.deal_contoller import create_deal_routes
 from controller.rest_api.item_controller import create_item_routes
@@ -64,6 +65,7 @@ def create_application() -> FastAPI:
     def health_check() -> dict:
         return {"status": "ok"}
     
+    app.include_router(create_auth_routes())
     app.include_router(create_user_routes())
     app.include_router(create_item_routes())
     app.include_router(create_upload_routes())

@@ -7,12 +7,13 @@ Supabase (PostgreSQL). All primary keys are `uuid` with `gen_random_uuid()` defa
 -- Users
 -- ============================================================
 CREATE TABLE users (
-    id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-    email       text        NOT NULL UNIQUE,
-    name        text,
-    max_cash_amt numeric,                       -- max absolute cash a user will pay on a trade
-    max_cash_pct numeric,                       -- max cash as % of item price (0-100)
-    created_at  timestamptz NOT NULL DEFAULT now()
+    id            uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    email         text        NOT NULL UNIQUE,
+    name          text,
+    password_hash text,                          -- bcrypt hash, NULL for legacy users
+    max_cash_amt  numeric,                       -- max absolute cash a user will pay on a trade
+    max_cash_pct  numeric,                       -- max cash as % of item price (0-100)
+    created_at    timestamptz NOT NULL DEFAULT now()
 );
 
 -- ============================================================

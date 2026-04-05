@@ -86,16 +86,22 @@ class MatchingService(SupabaseService):
             "status": "pending",
         })
         chatroom = chat_service.create_chatroom(deal["id"])
-        negotiation = negotiation_service.start_negotiation(deal["id"])
-        updated_deal = deal_service.get_deal(deal["id"])
 
         return {
             "selected_match": best_match,
-            "deal": updated_deal,
+            "deal": deal,
             "chatroom": chatroom,
-            "negotiation": negotiation,
-            "next_actions": self._build_next_actions(updated_deal["status"]),
+            "next_actions": self._build_next_actions(deal["status"]),
         }
+
+    @staticmethod
+    def run_negotiation_background(deal_id: str) -> None:
+        """Run AI negotiation in a background task (called after response is sent)."""
+        try:
+            NegotiationService().start_negotiation(deal_id)
+            logger.info("Background negotiation completed for deal %s", deal_id)
+        except Exception:
+            logger.exception("Background negotiation failed for deal %s", deal_id)
 
     def find_matches(
         self,

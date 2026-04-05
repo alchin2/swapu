@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { Search } from "lucide-react";
 import Masonry from "react-responsive-masonry";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
+import { authFetch } from "../auth";
 
 const FALLBACK_IMAGE = "https://via.placeholder.com/400?text=No+Image";
 
@@ -34,7 +35,7 @@ export function Feed() {
 
   useEffect(() => {
     setLoading(true);
-    fetch("/items/")
+    authFetch("/items/")
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch items");
         return res.json();

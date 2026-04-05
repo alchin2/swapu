@@ -122,3 +122,22 @@ class UploadService:
             "bucket": self.bucket_name,
             "region": self.region,
         }
+
+    def create_presigned_read_url(self, object_key: str, expiration: int = 3600) -> str:
+        """Generate a presigned GET URL so private S3 objects can be read."""
+        try:
+            return self.client.generate_presigned_url(
+                ClientMethod="get_object",
+                Params={"Bucket": self.bucket_name, "Key": object_key},
+                ExpiresIn=expiration,
+            )
+        except (BotoCoreError, ClientError):
+            return self._build_object_url(object_key)
+
+    def extract_object_key(self, s3_url: str) -> str | None:
+        """Extract the S3 object key from a full S3 URL."""
+        marker = ".amazonaws.com/"
+        idx = s3_url.find(marker)
+        if idx != -1:
+            return s3_url[idx + len(marker):]
+        return None

@@ -19,6 +19,7 @@ export default defineConfig({
   server: {
     proxy: {
       // Proxy all API requests to FastAPI backend
+      '/auth': 'http://localhost:8000',
       '/items': 'http://localhost:8000',
       '/deals': 'http://localhost:8000',
       '/users': 'http://localhost:8000',
