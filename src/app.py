@@ -9,6 +9,8 @@ from controller.rest_api.item_controller import create_item_routes
 from controller.rest_api.deal_contoller import create_deal_routes
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+from controller.rest_api.deal_contoller import create_deal_routes
+
 
 def create_application() -> FastAPI:
     app = FastAPI(
