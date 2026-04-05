@@ -1,9 +1,10 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, BackgroundTasks
 from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 from uuid import UUID
 
 from service.items_service import ItemService, Item, ItemCreate, ItemUpdate
+from agents.pricing_agent import pricing_agent
 
 
 def create_item_routes() -> APIRouter:
@@ -29,10 +30,10 @@ def create_item_routes() -> APIRouter:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
     @router.post("/", response_model=Item, status_code=status.HTTP_201_CREATED)
-    def create_item(request: ItemCreate):
+    async def create_item(request: ItemCreate, background_tasks: BackgroundTasks):
         """Create a new item"""
         try:
-            return item_service.create_item(
+            item = item_service.create_item(
                 owner_id=str(request.owner_id),
                 name=request.name,
                 category=request.category,
@@ -41,6 +42,15 @@ def create_item_routes() -> APIRouter:
                 confidence_score=request.confidence_score,
                 image_url=request.image_url
             )
+            
+            background_tasks.add_task(
+                pricing_agent.get_aggregated_price_and_category,
+                item["id"],
+                item["name"],
+                item["condition"]
+            )
+            
+            return item
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
