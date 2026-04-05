@@ -6,6 +6,7 @@ using the ASI1 chat completions API (OpenAI-compatible).
 Each agent knows its user's constraints and reasons about offers.
 """
 import json
+import logging
 import os
 from dataclasses import dataclass
 
@@ -13,6 +14,8 @@ import requests
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 ASI1_BASE = "https://api.asi1.ai/v1"
 ASI1_KEY = os.getenv("FETCH")
@@ -96,29 +99,37 @@ def _call_asi1(messages: list) -> dict:
         "response_format": RESPONSE_FORMAT,
         "temperature": 0.4,
     }
+    logger.info("Calling ASI1 API...")
     resp = requests.post(
         f"{ASI1_BASE}/chat/completions",
         headers=headers,
         json=payload,
         timeout=30,
     )
+    if not resp.ok:
+        logger.error("ASI1 API error %s: %s", resp.status_code, resp.text[:500])
     resp.raise_for_status()
     content = resp.json()["choices"][0]["message"]["content"]
-    return json.loads(content)
+    move = json.loads(content)
+    logger.info("ASI1 response: %s", json.dumps(move, indent=2))
+    return move
 
 
 def run_negotiation(
     deal_id: str,
     user1: UserContext,
     user2: UserContext,
-    user1_item_price: float,
-    user2_item_price: float,
 ) -> dict:
     """
     Run a negotiation between two ASI1 LLM agents.
     Returns negotiation logs and final result.
     """
     logs = []
+    logger.info("Starting negotiation for deal %s", deal_id)
+    logger.info("User1: %s (item=$%.2f, max_cash=$%.2f, max_pct=%.1f%%)",
+                user1.user_id[:8], user1.item_price, user1.max_cash_amt, user1.max_cash_pct)
+    logger.info("User2: %s (item=$%.2f, max_cash=$%.2f, max_pct=%.1f%%)",
+                user2.user_id[:8], user2.item_price, user2.max_cash_amt, user2.max_cash_pct)
 
     # Build system prompts
     sys1 = _build_system_prompt(user1, user2, "Agent 1 (opening negotiator)")
@@ -139,6 +150,7 @@ def run_negotiation(
     })
 
     move1 = _call_asi1(history1)
+    logger.info("[Round 1] Agent1 opening: %s", json.dumps(move1))
     history1.append({"role": "assistant", "content": json.dumps(move1)})
     logs.append({
         "agent": f"agent_{user1.user_id[:8]}",
@@ -179,6 +191,7 @@ def run_negotiation(
 
         current_history.append({"role": "user", "content": prompt})
         move = _call_asi1(current_history)
+        logger.info("[Round %d] %s: %s", round_num, agent_label, json.dumps(move))
         current_history.append({"role": "assistant", "content": json.dumps(move)})
 
         logs.append({
@@ -199,6 +212,9 @@ def run_negotiation(
             break
 
         last_move = move
+
+    logger.info("Negotiation complete: status=%s, cash=$%.2f, payer=%s, steps=%d",
+                final_status, final_cash, final_payer[:8] if final_payer else "none", total_steps)
 
     return {
         "logs": logs,
