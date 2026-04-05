@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from controller.rest_api.chat_controller import create_chat_routes
+from controller.rest_api.negotiation_controller import create_negotiation_routes
 from websocket.chat_ws import router as chat_ws_router
 
 
@@ -12,6 +13,7 @@ def create_application() -> FastAPI:
         license_info={"name": "MIT License"},
         openapi_tags=[
             {"name": "Chat", "description": "Chatroom management for deals"},
+            {"name": "Negotiation", "description": "AI agent deal negotiation"},
         ],
     )
 
@@ -24,6 +26,7 @@ def create_application() -> FastAPI:
     )
 
     app.include_router(create_chat_routes())
+    app.include_router(create_negotiation_routes())
     app.include_router(chat_ws_router)
 
     return app
