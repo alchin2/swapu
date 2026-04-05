@@ -108,7 +108,43 @@ class UserService:
         return response.data[0]
 
     def delete_user(self, user_id: str) -> dict:
-        """Delete a user. Raises ValueError if the user does not exist."""
+        """Delete a user and all associated records across every table."""
         self._get_user_or_raise(user_id)
+
+        # 1. Delete messages sent by this user
+        self.client.table("messages").delete().eq("sender_id", user_id).execute()
+
+        # 2. Delete deals involving this user, and their chatrooms/messages
+        deals = (
+            self.client.table("deals")
+            .select("id")
+            .or_(f"user1_id.eq.{user_id},user2_id.eq.{user_id}")
+            .execute()
+        )
+        deal_ids = [d["id"] for d in deals.data]
+        for deal_id in deal_ids:
+            # Delete chatroom messages first, then the chatroom itself
+            chatrooms = (
+                self.client.table("chatrooms")
+                .select("id")
+                .eq("deal_id", deal_id)
+                .execute()
+            )
+            for chatroom in chatrooms.data:
+                self.client.table("messages").delete().eq("chatroom_id", chatroom["id"]).execute()
+            self.client.table("chatrooms").delete().eq("deal_id", deal_id).execute()
+
+        # 3. Delete the deals themselves
+        if deal_ids:
+            self.client.table("deals").delete().in_("id", deal_ids).execute()
+
+        # 4. Delete this user's items
+        self.client.table("items").delete().eq("owner_id", user_id).execute()
+
+        # 5. Delete this user's wanted categories
+        self.client.table("user_categories").delete().eq("user_id", user_id).execute()
+
+        # 6. Finally delete the user
         self.client.table(USERS_TABLE).delete().eq("id", user_id).execute()
+
         return {"message": f"User '{user_id}' deleted successfully."}

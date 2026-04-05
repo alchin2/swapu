@@ -1,19 +1,21 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from typing import Optional
 
 from service.user_service import UserService
 
 
 class CreateUserRequest(BaseModel):
-    email: str
-    display_name: str
-    avatar_url: Optional[str] = None
+    email: EmailStr
+    name: str
+    max_cash_amt: Optional[float] = None
+    max_cash_pct: Optional[float] = None
 
 
 class UpdateUserRequest(BaseModel):
-    display_name: Optional[str] = None
-    avatar_url: Optional[str] = None
+    name: Optional[str] = None
+    max_cash_amt: Optional[float] = None
+    max_cash_pct: Optional[float] = None
 
 
 def create_user_routes() -> APIRouter:
@@ -25,12 +27,12 @@ def create_user_routes() -> APIRouter:
     def create_user(request: CreateUserRequest):
         """Register a new user."""
         try:
-            user = user_service.create_user(
+            return user_service.create_user(
                 email=request.email,
-                display_name=request.display_name,
-                avatar_url=request.avatar_url,
+                name=request.name,
+                max_cash_amt=request.max_cash_amt,
+                max_cash_pct=request.max_cash_pct,
             )
-            return user
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
@@ -52,12 +54,13 @@ def create_user_routes() -> APIRouter:
 
     @router.patch("/{user_id}")
     def update_user(user_id: str, request: UpdateUserRequest):
-        """Update a user's display name or avatar."""
+        """Update a user's name or cash trade limits."""
         try:
             return user_service.update_user(
                 user_id=user_id,
-                display_name=request.display_name,
-                avatar_url=request.avatar_url,
+                name=request.name,
+                max_cash_amt=request.max_cash_amt,
+                max_cash_pct=request.max_cash_pct,
             )
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
