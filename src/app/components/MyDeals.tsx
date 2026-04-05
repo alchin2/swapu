@@ -12,8 +12,9 @@ interface Deal {
 }
 
 export function MyDeals() {
-  // Use real user UUID
-  const userId = "19497467-e10b-4124-a65b-68c3f6b26be7";
+  // Use selected guest user UUID from localStorage
+  const stored = typeof window !== "undefined" ? localStorage.getItem("guest_user_id") : null;
+  const userId = stored ?? "19497467-e10b-4124-a65b-68c3f6b26be7";
   const [activeDeals, setActiveDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -28,6 +29,27 @@ export function MyDeals() {
       .then((data) => setActiveDeals(data))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
+  }, [userId]);
+
+  useEffect(() => {
+    function onGuestChange() {
+      const newStored = localStorage.getItem("guest_user_id");
+      const newUserId = newStored ?? "19497467-e10b-4124-a65b-68c3f6b26be7";
+      if (newUserId !== userId) {
+        setLoading(true);
+        fetch(`/deals/user/${newUserId}`)
+          .then((res) => {
+            if (!res.ok) throw new Error("Failed to fetch deals");
+            return res.json();
+          })
+          .then((data) => setActiveDeals(data))
+          .catch((err) => setError(err.message))
+          .finally(() => setLoading(false));
+      }
+    }
+
+    window.addEventListener("guest_user_changed", onGuestChange);
+    return () => window.removeEventListener("guest_user_changed", onGuestChange);
   }, [userId]);
 
   const statusColors = {

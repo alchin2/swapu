@@ -14,8 +14,9 @@ interface Item {
 const FALLBACK_IMAGE = "https://via.placeholder.com/400?text=No+Image";
 
 export function MyItems() {
-  // Use real user UUID
-  const userId = "19497467-e10b-4124-a65b-68c3f6b26be7";
+  // Use selected guest user UUID from localStorage
+  const stored = typeof window !== "undefined" ? localStorage.getItem("guest_user_id") : null;
+  const userId = stored ?? "19497467-e10b-4124-a65b-68c3f6b26be7";
   const [myItems, setMyItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -30,6 +31,28 @@ export function MyItems() {
       .then((data) => setMyItems(data.filter((item: Item) => item.owner_id === userId)))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
+  }, [userId]);
+
+  useEffect(() => {
+    function onGuestChange() {
+      const newStored = localStorage.getItem("guest_user_id");
+      const newUserId = newStored ?? "19497467-e10b-4124-a65b-68c3f6b26be7";
+      if (newUserId !== userId) {
+        // trigger refetch by updating loading and re-running effect
+        setLoading(true);
+        fetch("/items/")
+          .then((res) => {
+            if (!res.ok) throw new Error("Failed to fetch items");
+            return res.json();
+          })
+          .then((data) => setMyItems(data.filter((item: Item) => item.owner_id === newUserId)))
+          .catch((err) => setError(err.message))
+          .finally(() => setLoading(false));
+      }
+    }
+
+    window.addEventListener("guest_user_changed", onGuestChange);
+    return () => window.removeEventListener("guest_user_changed", onGuestChange);
   }, [userId]);
 
   const conditionColors = {

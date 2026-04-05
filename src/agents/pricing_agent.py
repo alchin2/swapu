@@ -1,4 +1,6 @@
 import logging
+import os
+import asyncio
 from typing import Literal
 from pydantic import BaseModel
 
@@ -25,6 +27,7 @@ class PricingResult(BaseModel):
 
 class PricingAgent:
     def __init__(self):
+        # Browser Use client (may be None in local dev)
         self.client = AsyncBrowserUse() if AsyncBrowserUse else None
         self.item_service = ItemService()
         self.allowed_categories = [
@@ -33,6 +36,17 @@ class PricingAgent:
             'games', 'instruments', 'art_supplies', 'sports_equipment',
             'transport', 'tickets', 'other'
         ]
+        # Concurrency and spacing controls to avoid overwhelming the Browser Use infrastructure
+        try:
+            self.concurrency = int(os.getenv("PRICING_AGENT_CONCURRENCY", "10"))
+        except Exception:
+            self.concurrency = 10
+        try:
+            self.delay_seconds = float(os.getenv("PRICING_AGENT_DELAY_SECONDS", "0.1"))
+        except Exception:
+            self.delay_seconds = 1.0
+        # Semaphore to limit concurrent BrowserUse runs
+        self._semaphore = asyncio.Semaphore(self.concurrency)
 
     async def get_aggregated_price_and_category(self, item_id: str, item_name: str, item_condition: str, input_price: float = 0.0):
         """
@@ -42,44 +56,50 @@ class PricingAgent:
         """
         logger.info(f"Starting pricing agent for item: {item_name} (ID: {item_id}, Condition: {item_condition})")
 
-        if self.client is None:
-            logger.warning("browser_use_sdk is not installed. Falling back to the provided item price.")
-            pricing_data = {
-                "average_price": input_price if input_price is not None else 10.0,
-                "new_price": input_price if input_price is not None else 10.0,
-                "category": "other",
-                "confidence_score": 0.0,
-            }
-        else:
-            task_prompt = f"""
-            Search for the item '{item_name}' across multiple platforms including eBay, Facebook Marketplace, Craigslist, and Amazon.
-            First, determine the average price of this item based on the listings you find for items in similar condition (Condition/Quality: '{item_condition}'). We will call this the average_price.
-            Second, find the price of a BRAND NEW version of this exact same item. This is the new_price.
-            You MUST categorize the item into ONE of these categories (no exceptions, do not invent new categories): textbooks, iclicker, lab_supplies, dining_dollars, electronics, dorm_essentials, clothing, trading_cards, games, instruments, art_supplies, sports_equipment, transport, tickets, other.
-            Provide a confidence_score between 0.0 and 1.0 based on how consistently you found this item and its price across these platforms.
+        # Limit concurrency and optionally add a small delay before each run to space requests
+        async with self._semaphore:
+            if self.delay_seconds and self.delay_seconds > 0:
+                logger.debug(f"Delaying pricing run for {self.delay_seconds}s to space out BrowserUse tasks")
+                await asyncio.sleep(self.delay_seconds)
 
-            CRITICAL: Your final output MUST be exactly in valid JSON format like this, with NO backticks or markdown or text outside it:
-            {{"average_price": 12.50, "new_price": 25.00, "category": "electronics", "confidence_score": 0.85}}
-            """
-
-            import json
-
-            pricing_data = None
-            result = None
-            try:
-                result = await self.client.run(task=task_prompt, model="bu-max")
-                clean_output = result.output[result.output.find('{'):result.output.rfind('}') + 1]
-                pricing_data = json.loads(clean_output)
-                logger.info(f"Successfully parsed JSON output: {pricing_data}")
-            except (Exception, json.JSONDecodeError) as e:
-                logger.error(f"Pricing agent failed: {e}. Using fallback.")
-                fallback_price = input_price if input_price is not None else 10.0
+            if self.client is None:
+                logger.warning("browser_use_sdk is not installed. Falling back to the provided item price.")
                 pricing_data = {
-                    "average_price": fallback_price,
-                    "new_price": fallback_price,
+                    "average_price": input_price if input_price is not None else 10.0,
+                    "new_price": input_price if input_price is not None else 10.0,
                     "category": "other",
                     "confidence_score": 0.0,
                 }
+            else:
+                task_prompt = f"""
+                Search for the item '{item_name}' across multiple platforms including eBay, Facebook Marketplace, Craigslist, and Amazon.
+                First, determine the average price of this item based on the listings you find for items in similar condition (Condition/Quality: '{item_condition}'). We will call this the average_price.
+                Second, find the price of a BRAND NEW version of this exact same item. This is the new_price.
+                You MUST categorize the item into ONE of these categories (no exceptions, do not invent new categories): textbooks, iclicker, lab_supplies, dining_dollars, electronics, dorm_essentials, clothing, trading_cards, games, instruments, art_supplies, sports_equipment, transport, tickets, other.
+                Provide a confidence_score between 0.0 and 1.0 based on how consistently you found this item and its price across these platforms.
+
+                CRITICAL: Your final output MUST be exactly in valid JSON format like this, with NO backticks or markdown or text outside it:
+                {{"average_price": 12.50, "new_price": 25.00, "category": "electronics", "confidence_score": 0.85}}
+                """
+
+                import json
+
+                pricing_data = None
+                result = None
+                try:
+                    result = await self.client.run(task=task_prompt, model="bu-max")
+                    clean_output = result.output[result.output.find('{'):result.output.rfind('}') + 1]
+                    pricing_data = json.loads(clean_output)
+                    logger.info(f"Successfully parsed JSON output: {pricing_data}")
+                except (Exception, json.JSONDecodeError) as e:
+                    logger.error(f"Pricing agent failed: {e}. Using fallback.")
+                    fallback_price = input_price if input_price is not None else 10.0
+                    pricing_data = {
+                        "average_price": fallback_price,
+                        "new_price": fallback_price,
+                        "category": "other",
+                        "confidence_score": 0.0,
+                    }
         # --- Post-processing ---
         predicted_price = float(pricing_data.get("average_price", 0.0))
         new_price = float(pricing_data.get("new_price", predicted_price))

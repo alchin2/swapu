@@ -136,3 +136,8 @@ class UserService(SupabaseService):
         self.client.table(USERS_TABLE).delete().eq("id", user_id).execute()
 
         return {"message": f"User '{user_id}' deleted successfully."}
+
+    def list_users(self) -> list:
+        """Return all users (used by frontend guest account selector)."""
+        response = self.client.table(USERS_TABLE).select("*").execute()
+        return response.data or []

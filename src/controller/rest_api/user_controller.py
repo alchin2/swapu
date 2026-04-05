@@ -57,4 +57,9 @@ def create_user_routes() -> APIRouter:
         """Delete a user account and all associated records."""
         return user_service.delete_user(user_id)
 
+    @router.get("")
+    def list_users():
+        """List all users (used by frontend guest account selector)."""
+        return user_service.list_users()
+
     return router

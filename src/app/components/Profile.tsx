@@ -1,12 +1,15 @@
 import { useState, useEffect } from "react";
 import { Edit } from "lucide-react";
+import { GuestLogin } from "./GuestLogin";
 
 export function Profile() {
-  // Use real user UUID
-  const userId = "19497467-e10b-4124-a65b-68c3f6b26be7";
+  // Use selected guest user UUID from localStorage
+  const stored = typeof window !== "undefined" ? localStorage.getItem("guest_user_id") : null;
+  const userId = stored ?? "19497467-e10b-4124-a65b-68c3f6b26be7";
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showGuestLogin, setShowGuestLogin] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -20,15 +23,51 @@ export function Profile() {
       .finally(() => setLoading(false));
   }, [userId]);
 
+  useEffect(() => {
+    function onGuestChange() {
+      const newStored = localStorage.getItem("guest_user_id");
+      const newUserId = newStored ?? "19497467-e10b-4124-a65b-68c3f6b26be7";
+      if (newUserId !== userId) {
+        setLoading(true);
+        fetch(`/users/${newUserId}`)
+          .then((res) => {
+            if (!res.ok) throw new Error("Failed to fetch user");
+            return res.json();
+          })
+          .then((data) => setUser(data))
+          .catch((err) => setError(err.message))
+          .finally(() => setLoading(false));
+      }
+    }
+
+    window.addEventListener("guest_user_changed", onGuestChange);
+    return () => window.removeEventListener("guest_user_changed", onGuestChange);
+  }, [userId]);
+
   if (loading) return <div>Loading...</div>;
   if (error) return <div className="text-red-500">{error}</div>;
-  if (!user) return <div>No user found.</div>;
+  if (!user) return <div>No user found. Select a guest account from the left sidebar.</div>;
 
   return (
     <div className="max-w-[1100px] mx-auto px-8 py-8">
-      <h1 className="mb-8" style={{ fontSize: '32px', fontWeight: 600, color: '#1A1A1A' }}>
-        Profile
-      </h1>
+      <div className="flex items-center justify-between mb-8">
+        <h1 style={{ fontSize: '32px', fontWeight: 600, color: '#1A1A1A' }}>
+          Profile
+        </h1>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowGuestLogin((s) => !s)}
+            className="px-4 py-2 border border-[#E5E5E5] rounded-lg bg-white hover:bg-[#F3F4F6]"
+          >
+            Switch account
+          </button>
+        </div>
+      </div>
+      {showGuestLogin && (
+        <div className="mb-6">
+          <GuestLogin />
+        </div>
+      )}
       <div className="bg-white rounded-xl p-8">
         <div className="flex items-center gap-4 mb-6">
           {/* Avatar placeholder, as API does not provide avatar */}
