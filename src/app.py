@@ -3,7 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from controller.rest_api.chat_controller import create_chat_routes
 from controller.rest_api.negotiation_controller import create_negotiation_routes
 from websocket.chat_ws import router as chat_ws_router
-
+from controller.rest_api.item_controller import create_item_routes
+from controller.rest_api.deal_contoller import create_deal_routes
 
 def create_application() -> FastAPI:
     app = FastAPI(
@@ -28,8 +29,9 @@ def create_application() -> FastAPI:
     app.include_router(create_chat_routes())
     app.include_router(create_negotiation_routes())
     app.include_router(chat_ws_router)
+    app.include_router(create_item_routes())
+    app.include_router(create_deal_routes())
 
     return app
-
 
 app = create_application()

@@ -1,15 +1,16 @@
-from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 from uuid import UUID, uuid4
 from datetime import datetime, timezone
 import logging
 
-from src.database.client import supabase
+from database.supabase_client import get_supabase_client
+try:
+    supabase = get_supabase_client()
+except ValueError:
+    supabase = None
 
 logger = logging.getLogger(__name__)
-
-router = APIRouter(prefix="/items", tags=["Items"])
 
 # Schema Definitions
 class ItemBase(BaseModel):
@@ -38,85 +39,97 @@ class Item(ItemBase):
     
     model_config = ConfigDict(from_attributes=True)
 
-@router.post("/", response_model=Item, status_code=status.HTTP_201_CREATED)
-async def create_item(item_in: ItemCreate):
-    """
-    Create a new item
-    """
-    if not supabase:
-        raise HTTPException(status_code=500, detail="Database connection not configured")
+class ItemService:
+    def get_items(self):
+        if not supabase:
+            raise ValueError("Database connection not configured")
         
-    try:
-        new_item_data = {
-            "id": str(uuid4()),
-            "owner_id": str(item_in.owner_id),
-            "name": item_in.name,
-            "category": item_in.category,
-            "condition": item_in.condition,
-            "price": item_in.price,
-            "confidence_score": item_in.confidence_score,
-            "image_url": item_in.image_url,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-        
-        response = supabase.table("items").insert(new_item_data).execute()
-        
-        if not response.data:
-            raise HTTPException(status_code=500, detail="Failed to create item")
-            
-        return response.data[0]
-    except Exception as e:
-        logger.error(f"Error creating item: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Could not create item")
+        try:
+            response = supabase.table("items").select("*").execute()
+            return response.data
+        except Exception as e:
+            logger.error(f"Error fetching items: {str(e)}")
+            raise ValueError("Could not fetch items")
 
-@router.patch("/{item_id}", response_model=Item)
-async def update_item(item_id: UUID, item_in: ItemUpdate):
-    """
-    Update an existing item
-    """
-    if not supabase:
-        raise HTTPException(status_code=500, detail="Database connection not configured")
-        
-    try:
-        update_data = item_in.model_dump(exclude_unset=True)
-        
+    def get_item(self, item_id: str):
+        if not supabase:
+            raise ValueError("Database connection not configured")
+            
+        try:
+            response = supabase.table("items").select("*").eq("id", item_id).execute()
+            if not response.data:
+                raise ValueError("Item not found")
+            return response.data[0]
+        except ValueError:
+            raise
+        except Exception as e:
+            logger.error(f"Error fetching item {item_id}: {str(e)}")
+            raise ValueError("Could not fetch item")
+
+    def create_item(self, owner_id: str, name: str, category: str, condition: str, price: float, confidence_score: Optional[float] = None, image_url: Optional[str] = None):
+        if not supabase:
+            raise ValueError("Database connection not configured")
+            
+        try:
+            new_item_data = {
+                "id": str(uuid4()),
+                "owner_id": owner_id,
+                "name": name,
+                "category": category,
+                "condition": condition,
+                "price": price,
+                "confidence_score": confidence_score,
+                "image_url": image_url,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            
+            response = supabase.table("items").insert(new_item_data).execute()
+            
+            if not response.data:
+                raise ValueError("Failed to create item")
+                
+            return response.data[0]
+        except Exception as e:
+            logger.error(f"Error creating item: {str(e)}")
+            raise ValueError("Could not create item")
+
+    def update_item(self, item_id: str, update_data: dict):
+        if not supabase:
+            raise ValueError("Database connection not configured")
+            
         if not update_data:
             # If no fields to update, just return the existing item
-            response = supabase.table("items").select("*").eq("id", str(item_id)).execute()
+            response = supabase.table("items").select("*").eq("id", item_id).execute()
             if not response.data:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
+                raise ValueError("Item not found")
             return response.data[0]
             
-        response = supabase.table("items").update(update_data).eq("id", str(item_id)).execute()
-        
-        if not response.data:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found or no changes made")
+        try:
+            response = supabase.table("items").update(update_data).eq("id", item_id).execute()
             
-        return response.data[0]
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error updating item {item_id}: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Could not update item")
+            if not response.data:
+                raise ValueError("Item not found or no changes made")
+                
+            return response.data[0]
+        except ValueError:
+            raise
+        except Exception as e:
+            logger.error(f"Error updating item {item_id}: {str(e)}")
+            raise ValueError("Could not update item")
 
-@router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_item(item_id: UUID):
-    """
-    Delete an item by its ID
-    """
-    if not supabase:
-        raise HTTPException(status_code=500, detail="Database connection not configured")
-        
-    try:
-        # Supabase API usually returns the deleted rows
-        response = supabase.table("items").delete().eq("id", str(item_id)).execute()
-        
-        if not response.data:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
+    def delete_item(self, item_id: str):
+        if not supabase:
+            raise ValueError("Database connection not configured")
             
-        return None
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error deleting item {item_id}: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Could not delete item")
+        try:
+            response = supabase.table("items").delete().eq("id", item_id).execute()
+            
+            if not response.data:
+                raise ValueError("Item not found")
+                
+            return None
+        except ValueError:
+            raise
+        except Exception as e:
+            logger.error(f"Error deleting item {item_id}: {str(e)}")
+            raise Exception("Could not delete item")
