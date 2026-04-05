@@ -70,4 +70,14 @@ def create_item_routes() -> APIRouter:
         item_service.delete_item(str(item_id))
         return None
 
+    @router.delete("/{item_id}/safe", status_code=status.HTTP_200_OK)
+    def safe_delete_item(item_id: UUID, _: dict = Depends(get_current_user)):
+        """Safely delete an item, auto-declining active deals."""
+        return item_service.safe_delete_item(str(item_id))
+
+    @router.get("/deal-statuses/{owner_id}")
+    def get_item_deal_statuses(owner_id: UUID, _: dict = Depends(get_current_user)):
+        """Get deal statuses for all items owned by a user."""
+        return item_service.get_item_deal_statuses(str(owner_id))
+
     return router

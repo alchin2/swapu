@@ -1,7 +1,7 @@
 import { Link, useNavigate } from "react-router";
 import { useState, useEffect, useCallback } from "react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
-import { Bot, Zap, Loader2 } from "lucide-react";
+import { Bot, Zap, Loader2, Trash2, Handshake, Clock, MessageSquare, XCircle, CheckCircle } from "lucide-react";
 import { authFetch } from "../auth";
 
 interface Item {
@@ -30,6 +30,8 @@ export function MyItems() {
   const [error, setError] = useState("");
   const [autoDealLoading, setAutoDealLoading] = useState(false);
   const [autoDealResult, setAutoDealResult] = useState<any>(null);
+  const [dealStatuses, setDealStatuses] = useState<Record<string, string>>({});
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [agentMode, setAgentMode] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("agent_trading_mode") !== "manual";
@@ -60,6 +62,14 @@ export function MyItems() {
       .then((data) => setMyItems(data.filter((item: Item) => item.owner_id === userId)));
   }, [userId]);
 
+  const fetchDealStatuses = useCallback(() => {
+    if (!userId) return Promise.resolve();
+    return authFetch(`/items/deal-statuses/${userId}`)
+      .then((res) => res.ok ? res.json() : {})
+      .then((data) => setDealStatuses(data))
+      .catch(() => {});
+  }, [userId]);
+
   useEffect(() => {
     if (!userId) {
       setLoading(false);
@@ -67,10 +77,10 @@ export function MyItems() {
       return;
     }
     setLoading(true);
-    fetchMyItems()
+    Promise.all([fetchMyItems(), fetchDealStatuses()])
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [userId, fetchMyItems]);
+  }, [userId, fetchMyItems, fetchDealStatuses]);
 
   // Poll every 3s while any item is still being priced by the agent
   useEffect(() => {
@@ -101,12 +111,30 @@ export function MyItems() {
     authFetch(`/items/${itemId}/reprice`, { method: "POST" })
       .then((res) => {
         if (!res.ok) throw new Error("Failed to re-price");
-        // Set confidence_score to null locally to show spinner
         setMyItems((prev) =>
           prev.map((it) => it.id === itemId ? { ...it, confidence_score: null } : it)
         );
       })
       .catch((err) => setError(err.message));
+  };
+
+  const handleDeleteItem = (itemId: string) => {
+    const status = dealStatuses[itemId];
+    const hasActiveDeal = status === "pending" || status === "negotiating";
+    const msg = hasActiveDeal
+      ? "This item has active deals that will be auto-declined. Remove anyway?"
+      : "Remove this item?";
+    if (!window.confirm(msg)) return;
+    setDeletingId(itemId);
+    setError("");
+    authFetch(`/items/${itemId}/safe`, { method: "DELETE" })
+      .then((res) => {
+        if (!res.ok) return res.json().then((e) => { throw new Error(e.detail || "Failed to delete"); });
+        setMyItems((prev) => prev.filter((it) => it.id !== itemId));
+        setDealStatuses((prev) => { const next = { ...prev }; delete next[itemId]; return next; });
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setDeletingId(null));
   };
 
   const handleAutoDeal = () => {
@@ -192,14 +220,34 @@ export function MyItems() {
         {myItems.map((item) => {
           const isPricing = item.confidence_score === null;
           const failedPricing = item.confidence_score === 0;
+          const itemDealStatus = dealStatuses[item.id] as string | undefined;
+          const isDeleting = deletingId === item.id;
+
+          const statusBadge: Record<string, { label: string; color: string; Icon: any }> = {
+            accepted: { label: "Traded", color: "bg-emerald-100 text-emerald-700 border-emerald-200", Icon: Handshake },
+            confirmed: { label: "Confirmed", color: "bg-emerald-100 text-emerald-700 border-emerald-200", Icon: CheckCircle },
+            negotiating: { label: "In Negotiation", color: "bg-purple-100 text-purple-700 border-purple-200", Icon: MessageSquare },
+            pending: { label: "Deal Pending", color: "bg-amber-100 text-amber-700 border-amber-200", Icon: Clock },
+            declined: { label: "Deal Declined", color: "bg-red-100 text-red-600 border-red-200", Icon: XCircle },
+          };
+
+          const badge = itemDealStatus ? statusBadge[itemDealStatus] : null;
+
           return (
-          <div key={item.id} className="bg-white rounded-xl overflow-hidden hover:shadow-lg transition-shadow">
+          <div key={item.id} className={`bg-white rounded-xl overflow-hidden hover:shadow-lg transition-shadow relative ${isDeleting ? "opacity-50 pointer-events-none" : ""}`}>
+            {/* Status badge overlay */}
+            {badge && (
+              <div className={`absolute top-3 left-3 z-10 flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${badge.color}`}>
+                <badge.Icon className="w-3 h-3" />
+                {badge.label}
+              </div>
+            )}
             <Link to={`/item/${item.id}`}>
               <div className="aspect-square overflow-hidden cursor-pointer">
                 <ImageWithFallback
                   src={item.image_urls[0] || FALLBACK_IMAGE}
                   alt={item.name}
-                  className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                  className={`w-full h-full object-cover hover:scale-105 transition-transform duration-300 ${itemDealStatus === "accepted" || itemDealStatus === "confirmed" ? "opacity-60" : ""}`}
                 />
               </div>
             </Link>
@@ -237,6 +285,25 @@ export function MyItems() {
                   </button>
                 )}
               </div>
+              {/* Delete / Remove button */}
+              <button
+                onClick={() => handleDeleteItem(item.id)}
+                disabled={isDeleting}
+                className={`mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  itemDealStatus === "accepted" || itemDealStatus === "confirmed"
+                    ? "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    : "bg-red-50 text-red-600 hover:bg-red-100"
+                }`}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                {isDeleting
+                  ? "Removing..."
+                  : itemDealStatus === "accepted" || itemDealStatus === "confirmed"
+                  ? "Remove Traded Item"
+                  : itemDealStatus === "negotiating" || itemDealStatus === "pending"
+                  ? "Delete (will cancel deals)"
+                  : "Delete Item"}
+              </button>
             </div>
           </div>
           );

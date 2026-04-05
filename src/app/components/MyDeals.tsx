@@ -108,13 +108,13 @@ export function MyDeals() {
                   <div className="flex items-center gap-3 flex-1">
                     <div>
                       <p className="text-xs text-[#6B6B6B]">You offer</p>
-                      <p className="font-semibold">{myItem?.name ?? "Loading..."}</p>
+                      <p className={`font-semibold ${!myItem ? "text-gray-400 italic" : ""}`}>{myItem?.name ?? "Item Removed"}</p>
                       {myItem && <p className="text-xs text-[#6B6B6B]">{myItem.category}</p>}
                     </div>
                     <ArrowRightLeft className="w-5 h-5 text-[#534AB7] flex-shrink-0" />
                     <div>
                       <p className="text-xs text-[#6B6B6B]">You receive</p>
-                      <p className="font-semibold">{theirItem?.name ?? "Loading..."}</p>
+                      <p className={`font-semibold ${!theirItem ? "text-gray-400 italic" : ""}`}>{theirItem?.name ?? "Item Removed"}</p>
                       {theirItem && <p className="text-xs text-[#6B6B6B]">{theirItem.category}</p>}
                     </div>
                   </div>

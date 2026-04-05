@@ -199,3 +199,64 @@ class ItemService(SupabaseService):
         except Exception as e:
             logger.exception("Error deleting item %s", item_id, exc_info=e)
             raise ExternalServiceError("Could not delete item.") from e
+
+    def get_item_deal_statuses(self, owner_id: str) -> dict[str, str]:
+        """Return a map of item_id -> deal status for all items belonging to the owner.
+
+        Priority order (highest wins):
+          accepted > confirmed > negotiating > pending > declined
+        Items with no deals are omitted from the result.
+        """
+        owner_id = self.require_identifier(owner_id, "owner_id")
+        priority = {"accepted": 5, "confirmed": 4, "negotiating": 3, "pending": 2, "declined": 1}
+        try:
+            deals = (
+                self.client.table("deals")
+                .select("user1_item_id, user2_item_id, status")
+                .or_(f"user1_id.eq.{owner_id},user2_id.eq.{owner_id}")
+                .execute()
+            )
+            result: dict[str, str] = {}
+            for d in deals.data or []:
+                for key in ("user1_item_id", "user2_item_id"):
+                    iid = d[key]
+                    existing = result.get(iid)
+                    if existing is None or priority.get(d["status"], 0) > priority.get(existing, 0):
+                        result[iid] = d["status"]
+            return result
+        except Exception as e:
+            logger.exception("Error fetching item deal statuses", exc_info=e)
+            return {}
+
+    def safe_delete_item(self, item_id: str) -> dict:
+        """Delete an item, handling related deals intelligently.
+
+        - No deals / only declined deals -> delete immediately.
+        - pending / negotiating deals -> auto-decline them, then delete.
+        - accepted / confirmed deals -> delete item (it's been traded).
+        Returns a summary of actions taken.
+        """
+        item_id = self.require_identifier(item_id, "item_id")
+        # Verify item exists
+        self.get_item(item_id)
+
+        # Find all deals referencing this item
+        deals = (
+            self.client.table("deals")
+            .select("id, status")
+            .or_(f"user1_item_id.eq.{item_id},user2_item_id.eq.{item_id}")
+            .execute()
+        )
+
+        declined_deals = []
+        for d in deals.data or []:
+            if d["status"] in ("pending", "negotiating"):
+                self.client.table("deals").update({"status": "declined"}).eq("id", d["id"]).execute()
+                declined_deals.append(d["id"])
+
+        self.delete_item(item_id)
+
+        return {
+            "deleted_item_id": item_id,
+            "auto_declined_deals": declined_deals,
+        }
