@@ -26,6 +26,55 @@ This document describes the current HTTP API exposed by the FastAPI application 
 | `500` | `configuration_error` or `internal_error` | Server configuration or unexpected failure |
 | `502` | `external_service_error` | A dependent external service failed |
 
+## Users
+
+Base path: `/users`
+
+### `POST /users`
+
+Register a new user.
+
+Request body:
+
+```json
+{
+  "email": "user@example.com",
+  "name": "Jane Doe",
+  "max_cash_amt": 50.0,
+  "max_cash_pct": 20.0
+}
+```
+
+### `GET /users`
+
+List all users (used by frontend guest account selector).
+
+### `GET /users/{user_id}`
+
+Get a user by ID.
+
+### `GET /users/email/{email}`
+
+Look up a user by email address.
+
+### `PATCH /users/{user_id}`
+
+Update a user's profile or cash trade limits.
+
+Request body:
+
+```json
+{
+  "name": "Jane Smith",
+  "max_cash_amt": 100.0,
+  "max_cash_pct": 50.0
+}
+```
+
+### `DELETE /users/{user_id}`
+
+Delete a user account and all associated records.
+
 ## Uploads
 
 Base path: `/uploads`
@@ -118,104 +167,6 @@ Response:
 ```json
 {
   "status": "ok"
-}
-```
-
-## Users
-
-Base path: `/users`
-
-### `POST /users`
-
-Create a user.
-
-Request body:
-
-```json
-{
-  "email": "user@example.com",
-  "name": "Jack",
-  "max_cash_amt": 100,
-  "max_cash_pct": 25
-}
-```
-
-Fields:
-
-| Field | Type | Required | Notes |
-| --- | --- | --- | --- |
-| `email` | string | yes | Valid email address |
-| `name` | string | yes | 1 to 120 characters |
-| `max_cash_amt` | number or null | no | Must be `>= 0` |
-| `max_cash_pct` | number or null | no | Must be between `0` and `100` |
-
-Success response: `201 Created`
-
-Example response:
-
-```json
-{
-  "id": "9f2f4487-98f0-42b4-9ed1-c8cc8f2c1b2a",
-  "email": "user@example.com",
-  "name": "Jack",
-  "max_cash_amt": 100,
-  "max_cash_pct": 25
-}
-```
-
-### `GET /users/{user_id}`
-
-Get a user by ID.
-
-Path parameters:
-
-| Name | Type | Notes |
-| --- | --- | --- |
-| `user_id` | string | User UUID |
-
-Success response: `200 OK`
-
-### `GET /users/email/{email}`
-
-Get a user by email.
-
-Path parameters:
-
-| Name | Type | Notes |
-| --- | --- | --- |
-| `email` | string | Must be a valid email |
-
-Success response: `200 OK`
-
-### `PATCH /users/{user_id}`
-
-Update a user's profile or cash preferences.
-
-Request body:
-
-```json
-{
-  "name": "Updated Name",
-  "max_cash_amt": 150,
-  "max_cash_pct": 40
-}
-```
-
-All fields are optional.
-
-Success response: `200 OK`
-
-### `DELETE /users/{user_id}`
-
-Delete the user and dependent records, including related messages, chatrooms, deals, items, and wanted categories.
-
-Success response: `200 OK`
-
-Example response:
-
-```json
-{
-  "message": "User '9f2f4487-98f0-42b4-9ed1-c8cc8f2c1b2a' deleted successfully."
 }
 ```
 
