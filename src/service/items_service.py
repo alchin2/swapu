@@ -1,25 +1,23 @@
-from pydantic import BaseModel, ConfigDict
-from typing import Optional, List
-from uuid import UUID, uuid4
 from datetime import datetime, timezone
 import logging
+from typing import Optional
+from uuid import UUID, uuid4
 
-from database.supabase_client import get_supabase_client
-try:
-    supabase = get_supabase_client()
-except ValueError:
-    supabase = None
+from pydantic import BaseModel, ConfigDict, Field
+
+from core.exceptions import ExternalServiceError, NotFoundError, ValidationError
+from service.base import SupabaseService
 
 logger = logging.getLogger(__name__)
 
 # Schema Definitions
 class ItemBase(BaseModel):
     owner_id: UUID
-    name: str
-    category: str
-    condition: str
-    price: float
-    confidence_score: Optional[float] = None
+    name: str = Field(min_length=1, max_length=200)
+    category: str = Field(min_length=1, max_length=80)
+    condition: str = Field(min_length=1, max_length=40)
+    price: float = Field(gt=0)
+    confidence_score: Optional[float] = Field(default=None, ge=0, le=1)
     image_url: Optional[str] = None
 
 class ItemCreate(ItemBase):
@@ -36,100 +34,93 @@ class ItemUpdate(BaseModel):
 class Item(ItemBase):
     id: UUID
     created_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)
 
-class ItemService:
+
+class ItemService(SupabaseService):
     def get_items(self):
-        if not supabase:
-            raise ValueError("Database connection not configured")
-        
         try:
-            response = supabase.table("items").select("*").execute()
+            response = self.client.table("items").select("*").execute()
             return response.data
         except Exception as e:
-            logger.error(f"Error fetching items: {str(e)}")
-            raise ValueError("Could not fetch items")
+            logger.exception("Error fetching items", exc_info=e)
+            raise ExternalServiceError("Could not fetch items.") from e
 
     def get_item(self, item_id: str):
-        if not supabase:
-            raise ValueError("Database connection not configured")
-            
         try:
-            response = supabase.table("items").select("*").eq("id", item_id).execute()
+            item_id = self.require_identifier(item_id, "item_id")
+            response = self.client.table("items").select("*").eq("id", item_id).limit(1).execute()
             if not response.data:
-                raise ValueError("Item not found")
+                raise NotFoundError(f"Item '{item_id}' not found.")
             return response.data[0]
-        except ValueError:
+        except NotFoundError:
             raise
         except Exception as e:
-            logger.error(f"Error fetching item {item_id}: {str(e)}")
-            raise ValueError("Could not fetch item")
+            logger.exception("Error fetching item %s", item_id, exc_info=e)
+            raise ExternalServiceError("Could not fetch item.") from e
 
     def create_item(self, owner_id: str, name: str, category: str, condition: str, price: float, confidence_score: Optional[float] = None, image_url: Optional[str] = None):
-        if not supabase:
-            raise ValueError("Database connection not configured")
-            
+        owner_id = self.require_identifier(owner_id, "owner_id")
+        if price <= 0:
+            raise ValidationError("price must be greater than zero.")
         try:
             new_item_data = {
                 "id": str(uuid4()),
                 "owner_id": owner_id,
-                "name": name,
-                "category": category,
-                "condition": condition,
+                "name": name.strip(),
+                "category": category.strip(),
+                "condition": condition.strip(),
                 "price": price,
                 "confidence_score": confidence_score,
                 "image_url": image_url,
-                "created_at": datetime.now(timezone.utc).isoformat()
+                "created_at": datetime.now(timezone.utc).isoformat(),
             }
-            
-            response = supabase.table("items").insert(new_item_data).execute()
-            
+
+            response = self.client.table("items").insert(new_item_data).execute()
+
             if not response.data:
-                raise ValueError("Failed to create item")
-                
+                raise ValidationError("Failed to create item.")
+
             return response.data[0]
+        except ValidationError:
+            raise
         except Exception as e:
-            logger.error(f"Error creating item: {str(e)}")
-            raise ValueError("Could not create item")
+            logger.exception("Error creating item", exc_info=e)
+            raise ExternalServiceError("Could not create item.") from e
 
     def update_item(self, item_id: str, update_data: dict):
-        if not supabase:
-            raise ValueError("Database connection not configured")
-            
+        item_id = self.require_identifier(item_id, "item_id")
         if not update_data:
-            # If no fields to update, just return the existing item
-            response = supabase.table("items").select("*").eq("id", item_id).execute()
-            if not response.data:
-                raise ValueError("Item not found")
-            return response.data[0]
-            
+            return self.get_item(item_id)
+
+        if "price" in update_data and update_data["price"] is not None and update_data["price"] <= 0:
+            raise ValidationError("price must be greater than zero.")
+
         try:
-            response = supabase.table("items").update(update_data).eq("id", item_id).execute()
-            
+            response = self.client.table("items").update(update_data).eq("id", item_id).execute()
+
             if not response.data:
-                raise ValueError("Item not found or no changes made")
-                
+                raise NotFoundError(f"Item '{item_id}' not found.")
+
             return response.data[0]
-        except ValueError:
+        except (NotFoundError, ValidationError):
             raise
         except Exception as e:
-            logger.error(f"Error updating item {item_id}: {str(e)}")
-            raise ValueError("Could not update item")
+            logger.exception("Error updating item %s", item_id, exc_info=e)
+            raise ExternalServiceError("Could not update item.") from e
 
     def delete_item(self, item_id: str):
-        if not supabase:
-            raise ValueError("Database connection not configured")
-            
+        item_id = self.require_identifier(item_id, "item_id")
         try:
-            response = supabase.table("items").delete().eq("id", item_id).execute()
-            
+            response = self.client.table("items").delete().eq("id", item_id).execute()
+
             if not response.data:
-                raise ValueError("Item not found")
-                
+                raise NotFoundError(f"Item '{item_id}' not found.")
+
             return None
-        except ValueError:
+        except NotFoundError:
             raise
         except Exception as e:
-            logger.error(f"Error deleting item {item_id}: {str(e)}")
-            raise Exception("Could not delete item")
+            logger.exception("Error deleting item %s", item_id, exc_info=e)
+            raise ExternalServiceError("Could not delete item.") from e
