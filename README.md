@@ -22,7 +22,9 @@ The backend is written in Python (FastAPI). Key domains: `users`, `items`, `deal
 
 Requirements are in `requirements.txt`. Start backend:
 ```bash
-vite run uvicorn src.app:app --reload
+pip install -r requirements.txt
+cd src
+uvicorn .app:app --reload
 ```
 or similar depending on setup.
 
@@ -31,8 +33,8 @@ The frontend is written in React + TypeScript + Vite.
 
 Install dependencies and start:
 ```bash
-pnpm install
-pnpm run dev
+npm install
+npm run dev
 ```
 
 ## Environment Variables
